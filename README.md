@@ -13,4 +13,5 @@ For switching specific metrics (interface stats, etc) it uses standard NET-SNMP 
 https://labs.consol.de/nagios/check_nwc_health/
 
 2018-09-04 - Eric Belhomme <rico-github@ricozome.net> - Published under MIT license
+
 2022-03-03 - Jon Witts - Updated for Python 3
