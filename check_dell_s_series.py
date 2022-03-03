@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Nagios check plugin for Dell | EMC² S-series switches, running OS10 firmware
    This check retrieve operational values from Dell specific SNMP MIBs :
@@ -20,7 +20,7 @@ import netsnmp
 
 __author__ = 'Eric Belhomme'
 __contact__ = 'rico-github@ricozome.net'
-__version__ = '0.1'
+__version__ = '0.1.1'
 __license__ = 'MIT'
 
 nagiosStatus = {
@@ -91,7 +91,7 @@ def getSnmpOperStatus(snmpOID, textval, warn, crit):
 				if int(item) != 1:
 					countfail += 1
 #					message.append(textval + ' number '+ index + 'repported as ' + Os10CmnOperStatus.get(item))
-			message.append(textval + ' number '+ str(index) + ' reported as ' + Os10CmnOperStatus.get(item))
+			message.append(str(textval) + ' number '+ str(index) + ' reported as ' + str(Os10CmnOperStatus.get(item)))
 			index += 1
 
 		if retCode != 3:
@@ -124,7 +124,7 @@ def getSystemInfo():
 		netsnmp.Varbind('.1.3.6.1.2.1.1.1', 0)) # sysDescr
 	vals = snmpSession.get(vars)
 	if vals:
-		message.append(vals[0] + ' (' + vals[1] + ' - ' + vals[2] + ')')
+		message.append(str(vals[0]) + ' (' + str(vals[1]) + ' - ' + str(vals[2]) + ')')
 	else:
 		retCode = 3
 		message.insert(0, 'Unable to get SNMP metrics from server !')
@@ -136,7 +136,7 @@ def getSystemInfo():
 		netsnmp.Varbind('.1.3.6.1.4.1.674.11000.5000.100.4.1.1.3.1.7.1')) #chassis service tag
 	vals = snmpSession.get(vars)
 	if vals:
-		message.append('chassis: ' + Os10ChassisDefType.get(vals[0]) + ' (rev. ' + vals[1] + ') - p/n:' + vals[2] + ' - ServiceTag:' + vals[3])
+		message.append('chassis: ' + str(Os10ChassisDefType.get(vals[0])) + ' (rev. ' + str(vals[1]) + ') - p/n:' + str(vals[2]) + ' - ServiceTag:' + str(vals[3]))
 	else:
 		retCode = 3
 		message.insert(0, 'Unable to get SNMP metrics from server !')
@@ -150,7 +150,7 @@ def getSystemInfo():
 	vals = snmpSession.get(vars)
 	if vals:
 		cardStatus = int(vals[3])
-		message.append('card: ' + vals[0] + ' (rev. ' + vals[1] + ') - p/n:' + vals[2] + ' - ServiceTag:' + vals[4] + ' - status:' + Os10CardOperStatus.get(vals[3]))
+		message.append('card: ' + str(vals[0]) + ' (rev. ' + str(vals[1]) + ') - p/n:' + str(vals[2]) + ' - ServiceTag:' + str(vals[4]) + ' - status:' + str(Os10CardOperStatus.get(vals[3])))
 	else:
 		retCode = 3
 		message.insert(0, 'Unable to get SNMP metrics from server !')
@@ -181,12 +181,12 @@ def getTemperatures(warn, crit):
 		for temp in vals:
 			if int(temp) > int(crit) and retCode < 2:
 				retCode = 2
-				message.append('temperature sensor at ' + temp + ' °C exceed critical threshold (' + str(crit) + '°C)')
+				message.append('temperature sensor at ' + str(temp) + ' °C exceed critical threshold (' + str(crit) + '°C)')
 			elif int(temp) > int(warn) and retCode < 1:
 				retCode = 1
-				message.append('temperature sensor at ' + temp + ' °C exceed warning threshold (' + str(warn) + '°C)')
+				message.append('temperature sensor at ' + str(temp) + ' °C exceed warning threshold (' + str(warn) + '°C)')
 			else:
-				message.append('temperature sensor at ' + temp + ' °C')
+				message.append('temperature sensor at ' + str(temp) + ' °C')
 	else:
 		retCode = 3
 		message.insert(0, 'Unable to get SNMP metrics from server !')	
