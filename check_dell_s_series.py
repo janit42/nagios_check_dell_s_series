@@ -85,6 +85,7 @@ def getSnmpOperStatus(snmpOID, textval, warn, crit):
 	if vals:
 		index = 1
 		for item in vals:
+			item = item.decode("utf-8")
 			if int(item) == 4:
 				retCode = 3
 #				message.append(textval + ' number '+ index + 'repported as ' + Os10CmnOperStatus.get(item))
@@ -180,6 +181,7 @@ def getTemperatures(warn, crit):
 	vals = snmpSession.get(vars)
 	if vals:
 		for temp in vals:
+			temp = temp.decode("utf-8")
 			if int(temp) > int(crit) and retCode < 2:
 				retCode = 2
 				message.append('temperature sensor at ' + str(temp) + ' °C exceed critical threshold (' + str(crit) + '°C)')
