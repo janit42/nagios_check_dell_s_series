@@ -185,10 +185,9 @@ def getTemperatures(warn, crit):
         netsnmp.Varbind('.1.3.6.1.4.1.674.11000.5000.100.4.1.1.4.1.5.1.1')  # card temp.
 	)
 	#vals = snmpSession.walk(vars)
-	vals = snmpSession.get(vars)
+	vals = list(map(lambda b: b.decode("utf-8"), snmpSession.get(vars)))
 	if vals:
 		for temp in vals:
-			temp = temp.decode("utf-8")
 			if int(temp) > int(crit) and retCode < 2:
 				retCode = 2
 				message.append('temperature sensor at ' + str(temp) + ' °C exceed critical threshold (' + str(crit) + '°C)')
