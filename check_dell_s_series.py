@@ -124,7 +124,7 @@ def getSystemInfo():
 		netsnmp.Varbind('.1.3.6.1.2.1.1.5', 0), # sysName
 		netsnmp.Varbind('.1.3.6.1.2.1.1.2', 0), # sysObjectId
 		netsnmp.Varbind('.1.3.6.1.2.1.1.1', 0)) # sysDescr
-	vals = snmpSession.get(vars)
+	vals = list(map(lambda b: b.decode("utf-8"), snmpSession.get(vars)))
 	if vals:
 		message.append(str(vals[0]) + ' (' + str(vals[1]) + ' - ' + str(vals[2]) + ')')
 	else:
@@ -136,7 +136,7 @@ def getSystemInfo():
 		netsnmp.Varbind('.1.3.6.1.4.1.674.11000.5000.100.4.1.1.3.1.6.1'), # chassis hw rev.
 		netsnmp.Varbind('.1.3.6.1.4.1.674.11000.5000.100.4.1.1.3.1.4.1'), # chassis p/n
 		netsnmp.Varbind('.1.3.6.1.4.1.674.11000.5000.100.4.1.1.3.1.7.1')) #chassis service tag
-	vals = snmpSession.get(vars)
+	vals = list(map(lambda b: b.decode("utf-8"), snmpSession.get(vars)))
 	if vals:
 		message.append('chassis: ' + str(Os10ChassisDefType.get(vals[0])) + ' (rev. ' + str(vals[1]) + ') - p/n:' + str(vals[2]) + ' - ServiceTag:' + str(vals[3]))
 	else:
@@ -149,7 +149,7 @@ def getSystemInfo():
 		netsnmp.Varbind('.1.3.6.1.4.1.674.11000.5000.100.4.1.1.4.1.6.1.1'), # card P/N
 		netsnmp.Varbind('.1.3.6.1.4.1.674.11000.5000.100.4.1.1.4.1.4.1.1'), # card status
 		netsnmp.Varbind('.1.3.6.1.4.1.674.11000.5000.100.4.1.1.4.1.9.1.1')) # card Service Tag
-	vals = snmpSession.get(vars)
+	vals = list(map(lambda b: b.decode("utf-8"), snmpSession.get(vars)))
 	if vals:
 		cardStatus = int(vals[3])
 		message.append('card: ' + str(vals[0]) + ' (rev. ' + str(vals[1]) + ') - p/n:' + str(vals[2]) + ' - ServiceTag:' + str(vals[4]) + ' - status:' + str(Os10CardOperStatus.get(vals[3])))
