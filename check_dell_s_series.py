@@ -1,292 +1,241 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+
 """Nagios check plugin for Dell | EMC² S-series switches, running OS10 firmware
    This check retrieve operational values from Dell specific SNMP MIBs :
    - hardware health
    - power unit status
    - fans status
    - temperatures
-   For switching specific metrics (interface stats, etc) it uses standard NET-SNMP MIBs, so
+   For switching specific metrics (interface stats, etc.) it uses standard NET-SNMP MIBs, so
    you can use generic SNMP check as the excellent check_nwc_health from Consol Labs:
    https://labs.consol.de/nagios/check_nwc_health/
+
+   cloned from  https://github.com/janit42/nagios_check_dell_s_series
    2018-09-04 - Eric Belhomme <rico-github@ricozome.net>
+
+   Original author: Eric Belhomme
+   Updated by: Alexander Bugl
 """
-from __future__ import print_function
 
 import sys
-import optparse
-import re
+import argparse
 import netsnmp
 
 __author__ = 'Eric Belhomme'
 __contact__ = 'rico-github@ricozome.net'
-__version__ = '0.1.1'
+__version__ = '0.1.2'
 __license__ = 'MIT'
 
 nagiosStatus = {
-	'0': 'OK',
-	'1': 'WARNING',
-	'2': 'CRITICAL',
-	'3': 'UNKNOWN'
+    '0': 'OK',
+    '1': 'WARNING',
+    '2': 'CRITICAL',
+    '3': 'UNKNOWN'
 }
 
 Os10CmnOperStatus = {
-	'1': 'up',
-	'2': 'down',
-	'3': 'testing',
-	'4': 'unknown',
-	'5': 'dormant',
-	'6': 'notPresent',
-	'7': 'lowerLayerDown',
-	'8': 'failed'
+    '1': 'up',
+    '2': 'down',
+    '3': 'testing',
+    '4': 'unknown',
+    '5': 'dormant',
+    '6': 'notPresent',
+    '7': 'lowerLayerDown',
+    '8': 'failed'
 }
 
 Os10ChassisDefType = {
-	'1': 's6000on',
-	'2': 's4048on',
-	'3': 's4048Ton',
-	'4': 's3048on',
-	'5': 's6010on',
-	'6': 's4148Fon',
-	'7': 's4128Fon',
-	'8': 's4148Ton',
-	'9': 's4128Ton',
-	'10': 's4148FEon',
-	'11': 's4148Uon',
-	'12': 's4200on',
-	'13': 'mx5108Non',
-	'14': 'mx9116Non',
-	'15': 's5148Fon',
-	'16': 'z9100on',
-	'17': 's4248FBon',
-	'18': 's4248FBLon',
-	'19': 's4112Fon',
-	'20': 's4112Ton',
-	'21': 'z9264Fon',
-	'22': 'z9224Fon',
-	'23': 's5212Fon',
-	'24': 's5224Fon',
-	'25': 's5232Fon',
-	'26': 's5248Fon',
-	'27': 's5296Fon',
-	'28': 'z9332Fon',
-	'29': 'n3248TEon',
-	'9999': 'unknown'
+    '1': 's6000on',
+    '2': 's4048on',
+    '3': 's4048Ton',
+    '4': 's3048on',
+    '5': 's6010on',
+    '6': 's4148Fon',
+    '7': 's4128Fon',
+    '8': 's4148Ton',
+    '9': 's4128Ton',
+    '10': 's4148FEon',
+    '11': 's4148Uon',
+    '12': 's4200on',
+    '13': 'mx5108Non',
+    '14': 'mx9116Non',
+    '15': 's5148Fon',
+    '16': 'z9100on',
+    '17': 's4248FBon',
+    '18': 's4248FBLon',
+    '19': 's4112Fon',
+    '20': 's4112Ton',
+    '21': 'z9264Fon',
+    '22': 'z9224Fon',
+    '23': 's5212Fon',
+    '24': 's5224Fon',
+    '25': 's5232Fon',
+    '26': 's5248Fon',
+    '27': 's5296Fon',
+    '28': 'z9332Fon',
+    '29': 'n3248TEon',
+    '9999': 'unknown'
 }
 
 Os10CardOperStatus = {
-	'1': 'ready',
-	'2': 'cardMisMatch',
-	'3': 'cardProblem',
-	'4': 'diagMode',
-	'5': 'cardAbsent',
-	'6': 'offline'
+    '1': 'ready',
+    '2': 'cardMisMatch',
+    '3': 'cardProblem',
+    '4': 'diagMode',
+    '5': 'cardAbsent',
+    '6': 'offline'
 }
 
-def getSnmpOperStatus(snmpOID, textval, warn, crit):
-	message = []
-	retCode = 0
-	countfail =0
-	var = netsnmp.VarList(netsnmp.Varbind(snmpOID))
-	vals = snmpSession.walk(var)
-	if vals:
-		index = 1
-		for item in vals:
-			item = item.decode("utf-8")
-			if int(item) == 4:
-				retCode = 3
-#				message.append(textval + ' number '+ index + 'repported as ' + Os10CmnOperStatus.get(item))
-			else:
-				if int(item) != 1:
-					countfail += 1
-#					message.append(textval + ' number '+ index + 'repported as ' + Os10CmnOperStatus.get(item))
-			message.append(str(textval) + ' number '+ str(index) + ' reported as ' + str(Os10CmnOperStatus.get(item)))
-			index += 1
 
-		if retCode != 3:
-			if countfail == 0:
-				retCode = 0
-				message.insert(0,'all ' + textval + '(s) OK')
-			else:
-				message.insert(0,'failed or error found for ' + textval)
-				if countfail < warn:
-					retCode = 1
-				if countfail < crit:
-					retCode = 2
-	else:
-		retCode = 3
-		message.insert(0, 'Unable to get SNMP metrics from server !')
+def get_snmp_oper_status(snmp_session, snmp_oid, hw_type, warn, crit):
+    ret_code = 0
+    messages = []
+    count_fail = 0
+    varlist = netsnmp.VarList(netsnmp.Varbind(snmp_oid))
+    vals = snmp_session.walk(varlist)
 
-	print( nagiosStatus.get(str(retCode)), ': ', end='' )
-	for item in message:
-		print( item)
-	print('')
-	return retCode
+    if not vals:
+        return 3, ['Unable to get SNMP metrics from server !'], []
 
-def getSystemInfo():
-	message = []
-	retCode = 0
-	cardStatus = 6
-	vars = netsnmp.VarList(
-		netsnmp.Varbind('.1.3.6.1.2.1.1.5', 0), # sysName
-		netsnmp.Varbind('.1.3.6.1.2.1.1.2', 0), # sysObjectId
-		netsnmp.Varbind('.1.3.6.1.2.1.1.1', 0)) # sysDescr
-	vals = list(map(lambda b: b.decode("utf-8"), snmpSession.get(vars)))
-	if vals:
-		message.append(str(vals[0]) + ' (' + str(vals[1]) + ' - ' + str(vals[2]) + ')')
-	else:
-		retCode = 3
-		message.insert(0, 'Unable to get SNMP metrics from server !')
+    for index, item in enumerate(vals, start=1):
+        status = int(item.decode("utf-8"))
+        if status == 4:
+            ret_code = 3
+        else:
+            if status != 1:
+                count_fail += 1
+        messages.append(f'{hw_type} #{str(index)} reported as {Os10CmnOperStatus.get(str(status))}')
 
-	vars = netsnmp.VarList(
-		netsnmp.Varbind('.1.3.6.1.4.1.674.11000.5000.100.4.1.1.3.1.2.1'), # chassis type
-		netsnmp.Varbind('.1.3.6.1.4.1.674.11000.5000.100.4.1.1.3.1.6.1'), # chassis hw rev.
-		netsnmp.Varbind('.1.3.6.1.4.1.674.11000.5000.100.4.1.1.3.1.4.1'), # chassis p/n
-		netsnmp.Varbind('.1.3.6.1.4.1.674.11000.5000.100.4.1.1.3.1.7.1')) #chassis service tag
-	vals = list(map(lambda b: b.decode("utf-8"), snmpSession.get(vars)))
-	if vals:
-		message.append('chassis: ' + str(Os10ChassisDefType.get(vals[0])) + ' (rev. ' + str(vals[1]) + ') - p/n:' + str(vals[2]) + ' - ServiceTag:' + str(vals[3]))
-	else:
-		retCode = 3
-		message.insert(0, 'Unable to get SNMP metrics from server !')
+    if ret_code != 3:
+        if count_fail == 0:
+            ret_code = 0
+            messages.insert(0, f'All {hw_type} (s) OK')
+        else:
+            messages.insert(0, f'Failed or error found for {hw_type}')
+            if count_fail < warn:
+                ret_code = 1
+            if count_fail < crit:
+                ret_code = 2
 
-	vars = netsnmp.VarList(
-		netsnmp.Varbind('.1.3.6.1.4.1.674.11000.5000.100.4.1.1.4.1.3.1.1'), # card descr
-		netsnmp.Varbind('.1.3.6.1.4.1.674.11000.5000.100.4.1.1.4.1.8.1.1'), # card h/w rev.
-		netsnmp.Varbind('.1.3.6.1.4.1.674.11000.5000.100.4.1.1.4.1.6.1.1'), # card P/N
-		netsnmp.Varbind('.1.3.6.1.4.1.674.11000.5000.100.4.1.1.4.1.4.1.1'), # card status
-		netsnmp.Varbind('.1.3.6.1.4.1.674.11000.5000.100.4.1.1.4.1.9.1.1')) # card Service Tag
-	vals = list(map(lambda b: b.decode("utf-8"), snmpSession.get(vars)))
-	if vals:
-		cardStatus = int(vals[3])
-		message.append('card: ' + str(vals[0]) + ' (rev. ' + str(vals[1]) + ') - p/n:' + str(vals[2]) + ' - ServiceTag:' + str(vals[4]) + ' - status:' + str(Os10CardOperStatus.get(vals[3])))
-	else:
-		retCode = 3
-		message.insert(0, 'Unable to get SNMP metrics from server !')
+    return ret_code, messages, []
 
-	if cardStatus != 1:
-		if (cardStatus == 4 or cardStatus == 6) and retCode < 1:
-			retCode = 1
-		else:
-			retCode = 2
 
-	print(nagiosStatus.get(str(retCode)) + ':', end=' ')
-	for item in message:
-		print( item)
-	return retCode
+def get_system_info(snmp_session):
+    ret_code = 0
+    messages = []
+    varlist = netsnmp.VarList(
+        netsnmp.Varbind('.1.3.6.1.2.1.1.5', 0), # sysName
+        netsnmp.Varbind('.1.3.6.1.2.1.1.2', 0), # sysObjectId
+        netsnmp.Varbind('.1.3.6.1.2.1.1.1', 0)) # sysDescr
+    vals = [b.decode("utf-8") for b in snmp_session.get(varlist)]
+    if not vals or None in vals:
+        return 3, ['Unable to get SNMP metrics from server !'], []
+    messages.append(f'{vals[0]} ( {vals[1]} )\n{vals[2]}')
 
-def getTemperatures(warn, crit):
-	retCode = 0
-	message = []
-	vars = netsnmp.VarList(
-	#	netsnmp.Varbind('.1.3.6.1.4.1.674.11000.5000.100.4.1.1.3.1.11'), # chassis temp.
-	#	netsnmp.Varbind('.1.3.6.1.4.1.674.11000.5000.100.4.1.1.4.1.5')  # card temp.
-		netsnmp.Varbind('.1.3.6.1.4.1.674.11000.5000.100.4.1.1.3.1.11.1'), # chassis temp.
-        netsnmp.Varbind('.1.3.6.1.4.1.674.11000.5000.100.4.1.1.4.1.5.1.1')  # card temp.
-	)
-	#vals = snmpSession.walk(vars)
-	vals = list(map(lambda b: b.decode("utf-8"), snmpSession.get(vars)))
-	if vals:
-		for temp in vals:
-			if int(temp) > int(crit) and retCode < 2:
-				retCode = 2
-				message.append('temperature sensor at ' + str(temp) + ' °C exceed critical threshold (' + str(crit) + '°C)')
-			elif int(temp) > int(warn) and retCode < 1:
-				retCode = 1
-				message.append('temperature sensor at ' + str(temp) + ' °C exceed warning threshold (' + str(warn) + '°C)')
-			else:
-				message.append('temperature sensor at ' + str(temp) + ' °C')
-	else:
-		retCode = 3
-		message.insert(0, 'Unable to get SNMP metrics from server !')	
-	if retCode == 0:
-		avg = sum(map(int, vals)) / len(vals)
-		message.insert(0, 'all temperature sensors OK with an average of '+ str(avg) + '°C')
+    varlist = netsnmp.VarList(
+        netsnmp.Varbind('.1.3.6.1.4.1.674.11000.5000.100.4.1.1.3.1.2.1'), # chassis type
+        netsnmp.Varbind('.1.3.6.1.4.1.674.11000.5000.100.4.1.1.3.1.6.1'), # chassis hw rev.
+        netsnmp.Varbind('.1.3.6.1.4.1.674.11000.5000.100.4.1.1.3.1.4.1'), # chassis p/n
+        netsnmp.Varbind('.1.3.6.1.4.1.674.11000.5000.100.4.1.1.3.1.7.1')) # chassis service tag
+    vals = [b.decode("utf-8") for b in snmp_session.get(varlist)]
+    if not vals or None in vals:
+        return 3, ['Unable to get SNMP metrics from server !'], []
+    messages.append(f'Chassis: {Os10ChassisDefType.get(vals[0])} (rev. {vals[1]}) - p/n: {vals[2]} - ServiceTag: {vals[3]}')
 
-	print(nagiosStatus.get(str(retCode)) + ':', end=' ')
-	for item in message:
-		print( item)
-	return retCode
+    varlist = netsnmp.VarList(
+        netsnmp.Varbind('.1.3.6.1.4.1.674.11000.5000.100.4.1.1.4.1.3.1.1'), # card descr
+        netsnmp.Varbind('.1.3.6.1.4.1.674.11000.5000.100.4.1.1.4.1.8.1.1'), # card h/w rev.
+        netsnmp.Varbind('.1.3.6.1.4.1.674.11000.5000.100.4.1.1.4.1.6.1.1'), # card P/N
+        netsnmp.Varbind('.1.3.6.1.4.1.674.11000.5000.100.4.1.1.4.1.4.1.1'), # card status
+        netsnmp.Varbind('.1.3.6.1.4.1.674.11000.5000.100.4.1.1.4.1.9.1.1')) # card Service Tag
+    vals = [b.decode("utf-8") for b in snmp_session.get(varlist)]
+    if not vals or None in vals:
+        return 3, ['Unable to get SNMP metrics from server !'], []
+    card_status = int(vals[3])
+    messages.append(f'Card: {vals[0]} (rev. {vals[1]}) - p/n: {vals[2]} - ServiceTag: {vals[4]} - Status: {Os10CardOperStatus.get(vals[3])}')
 
-def getArgs():
-	host=''
-	community=''
-	mode=''
-	warn=0
-	crit=0
-	usage = "usage: %prog -H <host> -C <community> -m ( fans | power | health | temp ) [ -w <warn>  ] [ -c crit ]"
-	descr = 'Nagios check plugin for Dell|EMC S-series switches running OS10 firmware'
-	epilog = __author__ + ' <' + __contact__ + '> - ' + __license__ + ' license'
-	optp = optparse.OptionParser(usage=usage, version="%prog " + __version__, description=descr, epilog=epilog)
-	optp.add_option('-H', '--host', help='IP address', dest='host')
-	optp.add_option('-C', '--community', help='SNMPv2 community', dest='community')
-	optp.add_option('-m', '--mode', help='mode (fans | power | health | temp)', dest='mode')
-	optp.add_option('-w', '--warning', help='warning threshold', dest='warning')
-	optp.add_option('-c', '--critical', help='critical threshold', dest='critical')
-	opts, args = optp.parse_args()
+    if card_status != 1:
+        if (card_status == 4 or card_status == 6) and ret_code < 1:
+            ret_code = 1
+        else:
+            ret_code = 2
 
-	if opts.host is None:
-		print('Error: missing IP address')
-		optp.print_help()
-		sys.exit(1)
-	else:
-		host = opts.host
+    return ret_code, messages, []
 
-	if opts.mode is None:
-		print('Error: missing mode')
-		optp.print_help()
-		sys.exit(1)
-	else:
-		pattern = re.compile('^(fans|power|health|temp)$')
-		if not pattern.match(opts.mode):
-			print('Error: unknown mode \'' + opts.mode + '\'')
-			optp.print_help()
-			sys.exit(1)
-		else:
-			mode = opts.mode
 
-	if opts.community is None:
-		community = 'public'
-	else:
-		community = opts.community
+def get_temperatures(snmp_session, warn, crit):
+    ret_code = 0
+    messages = []
+    perf_data = []
+    varlist = netsnmp.VarList(
+        netsnmp.Varbind('.1.3.6.1.4.1.674.11000.5000.100.4.1.1.3.1.11.1'),   # chassis temp.
+        netsnmp.Varbind('.1.3.6.1.4.1.674.11000.5000.100.4.1.1.4.1.5.1.1'))  # card temp.
+    vals = list(map(lambda b: b.decode("utf-8"), snmp_session.get(varlist)))
+    if not vals or None in vals:
+        return 3, ['Unable to get SNMP metrics from server !'], []
 
-	if opts.warning is None:
-		if mode == 'fans':
-			warn = 1
-		if mode == 'power':
-			warn = 0
-		if mode == 'temp':
-			warn = 50
-	else:
-		warn = opts.warning
-		
-	if opts.critical is None:
-		if mode == 'fans':
-			crit = 2
-		if mode == 'power':
-			crit = 1
-		if mode == 'temp':
-			crit = 60
-	else:
-		crit = opts.critical
+    for index, temp in enumerate(vals, start=1):
+        if int(temp) > crit and ret_code < 2:
+            ret_code = 2
+            messages.append(f'Temperature sensor at {str(temp)}°C exceeds critical threshold ({str(crit)}°C)')
+        elif int(temp) > warn and ret_code < 1:
+            ret_code = 1
+            messages.append(f'Temperature sensor at {str(temp)}°C exceeds warning threshold ({str(warn)}°C)')
+        else:
+            messages.append(f'Temperature sensor at {str(temp)}°C')
+            perf_data.append(f'temp{index}={str(temp)}°C;{str(warn)};{str(crit)}')
+    if ret_code == 0:
+        avg = sum(map(int, vals)) / len(vals)
+        messages.insert(0, f'All temperature sensors OK with an average of {str(avg)}°C')
 
-	return host, community, mode, warn, crit
-	
+    return ret_code, messages, perf_data
+
+
+def get_args():
+    parser = argparse.ArgumentParser(description="Nagios check plugin for Dell|EMC S-series switches running OS10 firmware")
+    parser.add_argument('--version', '-V', action='version', version=f"%(prog)s {__version__} - {__author__} <{__contact__}> - {__license__} license")
+    parser.add_argument('-H', '--host', required=True, help='IP address')
+    parser.add_argument('-C', '--community', default='public', help='SNMPv2 community')
+    parser.add_argument('-m', '--mode', required=True, choices=['fans', 'power', 'health', 'temp'], help='Check mode')
+    parser.add_argument('-w', '--warning', type=int, help='Warning threshold', default=50)
+    parser.add_argument('-c', '--critical', type=int, help='Critical threshold', default=60)
+    args = parser.parse_args()
+    if args.mode == 'fans':
+        args.warning = 1
+        args.critical = 2
+    elif args.mode == 'power':
+        args.warning = 0
+        args.critical = 1
+    return args.host, args.community, args.mode, args.warning, args.critical
+
+
+def main():
+    ret_code = 3
+    msg = []
+    perf_data = []
+    host, community, mode, warn, crit = get_args()
+    snmp_session = netsnmp.Session(Version = 2, DestHost=host, Community=community)
+
+    if mode == 'fans':
+        # os10FanTrayOperStatus MIB
+        ret_code, msg, perf_data = get_snmp_oper_status(snmp_session, '.1.3.6.1.4.1.674.11000.5000.100.4.1.2.2.1.4', 'fan', warn, crit)
+    if mode == 'power':
+        # os10PowerSupplyOperStatus MIB
+        ret_code, msg, perf_data = get_snmp_oper_status(snmp_session, '.1.3.6.1.4.1.674.11000.5000.100.4.1.2.1.1.4', 'PSU', warn, crit)
+    if mode == 'temp':
+        ret_code, msg, perf_data = get_temperatures(snmp_session, warn, crit)
+    if mode == 'health':
+        ret_code, msg, perf_data = get_system_info(snmp_session)
+
+    output = f'{nagiosStatus.get(str(ret_code))}: '
+    if msg:
+        output += '\n'.join(msg)
+    if perf_data:
+        output += " | " + " ".join(sorted(perf_data))
+    print(output)
+
+    sys.exit(ret_code)
+
 
 if __name__ == '__main__':
-	retCode = 3
-	host, community, mode, warn, crit = getArgs()
-	snmpSession = netsnmp.Session( Version = 2, DestHost=host, Community=community )
-
-	if mode == 'fans':
-		# os10FanTrayOperStatus MIB
-		retCode = getSnmpOperStatus('.1.3.6.1.4.1.674.11000.5000.100.4.1.2.2.1.4', 'fan', warn, crit)
-	if mode == 'power':
-		# os10PowerSupplyOperStatus MIB
-		retCode = getSnmpOperStatus('.1.3.6.1.4.1.674.11000.5000.100.4.1.2.1.1.4', 'PSU', warn, crit)
-	if mode == 'temp':
-		retCode = getTemperatures(warn, crit)
-	if mode == 'health':
-		retCode = getSystemInfo()
-
-	sys.exit(retCode)
+    main()
